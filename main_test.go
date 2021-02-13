@@ -43,6 +43,7 @@ func TestChunk(t *testing.T) {
 	samples := make([][2]float64, 512)
 	for s := 0; s < Size; {
 		read := rand.Intn(512)
+		t.Logf("s: %v", s)
 		n, ok := c.Stream(samples[0:read])
 		assert.Assert(t, ok)
 		if Size-s < read {

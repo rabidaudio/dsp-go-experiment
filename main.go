@@ -43,49 +43,34 @@ func main() {
 func Chunk(wrapped beep.Streamer, size int) beep.Streamer {
 	buf := make([][2]float64, size, size)
 	buffered := 0
-	return beep.StreamerFunc(func(samples [][2]float64) (n int, ok bool) {
-		s := 0
-		// read any buffered data into sample
-		for i := 0; i < buffered; i++ {
-			if i < len(samples) {
-				samples[i] = buf[i]
-				s++
-				n++
-			} else {
-				buf[i-s] = buf[i]
-			}
-		}
-		buffered -= s
-		for s < len(samples) {
-			if len(samples)-s < size {
-				if buffered > 0 {
-					panic("expected empty buffer")
+	return beep.StreamerFunc(func(samples [][2]float64) (int, bool) {
+		n := 0
+		for n < len(samples) {
+			if buffered > 0 {
+				// read any buffered data into sample
+				for i := size - buffered; i < size && n < len(samples); i++ {
+					samples[n] = buf[i]
+					n++
+					buffered--
 				}
-				nn, ok2 := wrapped.Stream(buf)
-				for i := 0; i < nn; i++ {
-					if s < len(samples) {
-						samples[s] = buf[i]
-						s++
-						n++
-					} else {
-						buf[buffered] = buf[i]
-						buffered++
-					}
+			} else if len(samples)-n < size {
+				// read into the buffer instead, so that we can send a partial amount outs
+				nn, ok := wrapped.Stream(buf)
+				if !ok {
+					break
 				}
-				if !ok2 {
-					return n, n > 0
-				}
+				buffered += nn
+				continue // on the next loop we'll copy the buffer into the samples
 			} else {
 				// chunk the samples to the desired size
-				nn, ok2 := wrapped.Stream(samples[s : s+size])
-				n += nn
-				if !ok2 {
-					return n, n > 0
+				nn, ok := wrapped.Stream(samples[n : n+size])
+				if !ok {
+					break
 				}
-				s += size
+				n += nn
 			}
 		}
-		return n, true
+		return n, n > 0
 	})
 }
 
